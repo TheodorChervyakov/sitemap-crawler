@@ -23,7 +23,7 @@ import sys
 import logging
 
 _format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-logging.basicConfig(level=logging.INFO, format=_format)
+logging.basicConfig(level=logging.DEBUG, format=_format)
 
 logger = logging.getLogger(__name__)
 
@@ -43,23 +43,23 @@ def get_robots(url):
 
     logger.info('Fetching robots.txt from {0}'.format(robots_url))
     # Fetching robots.txt
+    timeout = 15
     try:
-        timeout = 15
         r = requests.get(robots_url,timeout=timeout)
         r.raise_for_status()
         logger.debug(r.text)
         return r.text
-    except HTTPError as e:
-        logger.error('Request for {0} FAILED with code {1}'
+    except HTTPError:
+        logger.warning('Request for {0} FAILED with code {1}'
                     .format(robots_url,r.status_code))
-        raise e
-    except ReadTimeout as rt:
-        logger.error('Request for {0} TIMEOUTed after {1} seconds.'
+        raise
+    except ReadTimeout:
+        logger.warning('Request for {0} TIMEOUTed after {1} seconds.'
                     .format(robots_url,timeout))
-        raise rt
-    except Exception as ex:
-        logger.exception(ex)
-        raise ex
+        raise
+    except Exception:
+        logger.error('An unexpected error occured in get_robots', exc_info=True)
+        raise 
 
 def parse_robots(robots_string,crawl_delay=True):
     ''' 
@@ -67,6 +67,11 @@ def parse_robots(robots_string,crawl_delay=True):
     and if crawl_delay flag is True 
     fetch value for crawl-delay
     '''
+    if robots_string is None:
+        raise TypeError('The robots.txt is of None type!')
+    elif len(robots_string) is 0:
+        raise ValueError('The robots.txt is empty!')
+
     params = dict()
     # Reading sitemap entries
     matches = sitemap_pattern.findall(robots_string)
@@ -81,7 +86,10 @@ def parse_robots(robots_string,crawl_delay=True):
 
 def parse_sitemap(sitemap_url):
     '''
-    Fetching links from specified sitemap
+    Fetch links from specified sitemap
+    Can be either sitemapindex or urlset.
+    If encountered sitemapindex this function calls
+    itself on each link link until urlset is encountered
     '''
     # Fetching sitemap from sitemap_url
     logger.info('Requesting {0}'.format(sitemap_url))
@@ -101,7 +109,7 @@ def parse_sitemap(sitemap_url):
         sitemaps = [c.findtext('sitemap:loc',namespaces=xml_namespaces) 
                     for c in root.getchildren()]
         logger.info('   Sitemaps in this index: {0}'.format(sitemaps))
-        # Fetching links from each urlset
+        # Fetching links from each urlset in this sitemapindex
         links_multid = [parse_sitemap(s) for s in sitemaps]
         # Flattenning multidimensional list of links
         links = list(itertools.chain(links_multid)) 

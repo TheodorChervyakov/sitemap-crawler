@@ -3,5 +3,5 @@ include/
 lib/
 pip-selfcheck.json
 
-linkretriever.py
+__pycache__/
 telegrambot.py
