@@ -1,5 +1,6 @@
 
-from crawler.crawler import Crawler
+from crawler import Crawler
+from crawler.exceptions import BadStatusCode
 
 import pytest
 
@@ -18,16 +19,6 @@ def test_crawler_init(links, max_batch_size, expected_max_batch):
     assert c.timeout == 15
 
 
-@pytest.mark.parametrize("links", [
-    ['http://example.com'],
-    ['http://example.com', 'http://google.com']
-])
-def test_crawler_init_with_invalid_max_batch_size(links):
-    c = Crawler(links, max_batch_size=2)
-
-    assert c.max_batch == len(links)
-
-
 @pytest.mark.parametrize("crawl_delay", [-1, 0.088, 0])
 def test_crawler_init_with_invalid_crawl_delay(crawl_delay):
     with pytest.raises(ValueError):
@@ -37,3 +28,26 @@ def test_crawler_init_with_invalid_crawl_delay(crawl_delay):
 def test_crawler_init_if_links_is_not_list():
     with pytest.raises(AttributeError):
         c = Crawler('http://example.com')
+
+
+def test_crawler_scan_page_existing():
+    page = 'http://example.com'
+    c = Crawler([page])
+    elapsed = c.scan_page(page)
+    assert elapsed > 0
+
+
+def test_crawler_scan_page_bad_status_code():
+    page = 'http://google.com/404'
+    with pytest.raises(BadStatusCode):
+        c = Crawler([page])
+        elapsed = c.scan_page(page)
+
+def test_crawler_run():
+    links = ['http://google.com']
+    c = Crawler(links)
+    c.start()
+    c.join()
+    assert c.done
+
+    

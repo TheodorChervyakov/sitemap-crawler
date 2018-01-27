@@ -23,7 +23,7 @@ import sys
 import logging
 
 _format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-logging.basicConfig(level=logging.DEBUG, format=_format)
+logging.basicConfig(level=logging.INFO, format=_format)
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def parse_sitemap(sitemap_url):
         # Fetching links from each urlset in this sitemapindex
         links_multid = [parse_sitemap(s) for s in sitemaps]
         # Flattenning multidimensional list of links
-        links = list(itertools.chain(links_multid))
+        links = list(itertools.chain.from_iterable(links_multid))
     elif 'urlset' in root.tag:
         # Requested page is urlset
         logger.info('   This looks like urlset.')
@@ -142,6 +142,7 @@ def main():
         logger.info(params)
         for sitemap in params['sitemaps']:
             links = parse_sitemap(sitemap)
+            logger.info(len(links))
 
 if __name__ == '__main__':
     main()

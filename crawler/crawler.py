@@ -14,8 +14,11 @@
     limitations under the License.
 '''
 import requests
-import threading
+from requests.exceptions import HTTPError
 
+from crawler.exceptions import BadStatusCode
+
+import threading
 import logging
 
 class Crawler(threading.Thread):
@@ -24,12 +27,14 @@ class Crawler(threading.Thread):
                 user_agent=None,timeout=15):
         ''' Initialize crawler.
             
-            @links is the list of links to scan
-            @crawl_delay is the delay between requests (in seconds)
-            @max_batch_size is the maximum number of consecutive requests
-            @user_agent is user agent to use when requesting pages
-            @timeout is timeout value in seconds to use when requesting pages
+        Attributes:
+            links -- list of links to scan
+            crawl_delay -- delay between requests (in seconds)
+            max_batch_size -- maximum number of consecutive requests
+            user_agent -- user agent to use when requesting pages
+            timeout -- timeout value in seconds to use when requesting pages
         '''
+        threading.Thread.__init__(self)
         self.logger = logging.getLogger(__name__)
         
         self.logger.info('Initializing crawler.')
@@ -59,7 +64,8 @@ class Crawler(threading.Thread):
         self.max_batch = max_batch_size
         self.user_agent = user_agent
         self.timeout = timeout
-        
+        self.done = False
+
         self.logger.info('Crawl delay is set to {0} seconds'
                         .format(self.crawl_delay))
         self.logger.info('Max batch size is set to {0}'.format(self.max_batch))
@@ -76,16 +82,23 @@ class Crawler(threading.Thread):
 
         try:
             r = requests.get(url, headers=headers, timeout=self.timeout)
+            r.raise_for_status()
+        except HTTPError as e:
+            raise BadStatusCode(url, e.response.status_code)
         except Exception:
-            raise 
+            logger.error('An uncaught exception occured in scan_page')
+            raise
         else:
-            return r.status_code, r.elapsed
+            return r.elapsed.total_seconds()
 
+
+    #def run(self):
+        
 
 def main():
     logging.basicConfig(level=logging.INFO)
     c = Crawler(['http://google.com'])
-    logging.info(c.scan_page('http://google.com'))
+    logging.info(c.scan_page('http://google.com/4040'))
 
 
 if __name__ == '__main__':
