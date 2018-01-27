@@ -30,41 +30,45 @@ logger = logging.getLogger(__name__)
 sitemap_pattern = re.compile('sitemap: ([\w.\:\-/]+\.xml/?)', re.IGNORECASE)
 crawl_delay_pattern = re.compile('crawl\-delay: ([\d.]+)', re.IGNORECASE)
 
-xml_namespaces = {'sitemap' : "http://www.sitemaps.org/schemas/sitemap/0.9"}
+xml_namespaces = {'sitemap': "http://www.sitemaps.org/schemas/sitemap/0.9"}
+
 
 def get_robots(url):
-    ''' 
+    '''
     Retrieves robots.txt from
     url + /robots.txt
     '''
     # Building link to robots.txt
-    if url[-1] != '/': url += '/'
+    if url[-1] != '/':
+        url += '/'
     robots_url = url + 'robots.txt'
 
     logger.info('Fetching robots.txt from {0}'.format(robots_url))
     # Fetching robots.txt
     timeout = 15
     try:
-        r = requests.get(robots_url,timeout=timeout)
+        r = requests.get(robots_url, timeout=timeout)
         r.raise_for_status()
         logger.debug(r.text)
         return r.text
     except HTTPError:
         logger.warning('Request for {0} FAILED with code {1}'
-                    .format(robots_url,r.status_code))
+                       .format(robots_url, r.status_code))
         raise
     except ReadTimeout:
         logger.warning('Request for {0} TIMEOUTed after {1} seconds.'
-                    .format(robots_url,timeout))
+                       .format(robots_url, timeout))
         raise
     except Exception:
-        logger.error('An unexpected error occured in get_robots', exc_info=True)
-        raise 
+        logger.error('An unexpected error occured in get_robots',
+                     exc_info=True)
+        raise
 
-def parse_robots(robots_string,crawl_delay=True):
-    ''' 
+
+def parse_robots(robots_string, crawl_delay=True):
+    '''
     Parse robots.txt for sitemap entries
-    and if crawl_delay flag is True 
+    and if crawl_delay flag is True
     fetch value for crawl-delay
     '''
     if robots_string is None:
@@ -76,13 +80,15 @@ def parse_robots(robots_string,crawl_delay=True):
     # Reading sitemap entries
     matches = sitemap_pattern.findall(robots_string)
     params['sitemaps'] = set(matches)
-    
+
     if crawl_delay:
         # Reading crawl-delay
         c = crawl_delay_pattern.search(robots_string)
-        if c: params['crawl-delay'] = c.group(1)
-        
+        if c:
+            params['crawl-delay'] = float(c.group(1))
+
     return params
+
 
 def parse_sitemap(sitemap_url):
     '''
@@ -98,31 +104,32 @@ def parse_sitemap(sitemap_url):
         r.raise_for_status()
     except HTTPError as h:
         logger.error('Request for {0} FAILED with status code {1}'
-                    .format(sitemap_url,r.status_code))
+                     .format(sitemap_url, r.status_code))
         raise h
-    
+
     root = etree.fromstring(r.content)
     if 'sitemapindex' in root.tag:
         # Requested page is sitemapindex
         logger.info('   Looks like this is sitemapindex.')
         # Fetching urlsets from this sitemapindex
-        sitemaps = [c.findtext('sitemap:loc',namespaces=xml_namespaces) 
+        sitemaps = [c.findtext('sitemap:loc', namespaces=xml_namespaces)
                     for c in root.getchildren()]
         logger.info('   Sitemaps in this index: {0}'.format(sitemaps))
         # Fetching links from each urlset in this sitemapindex
         links_multid = [parse_sitemap(s) for s in sitemaps]
         # Flattenning multidimensional list of links
-        links = list(itertools.chain(links_multid)) 
+        links = list(itertools.chain(links_multid))
     elif 'urlset' in root.tag:
         # Requested page is urlset
         logger.info('   This looks like urlset.')
         # Fetching links from this urlset
         links = [c.findtext('sitemap:loc', namespaces=xml_namespaces)
-                for c in root.getchildren()]
+                 for c in root.getchildren()]
         logger.info('   Succesfully fetched {0} links from {1}'
-                    .format(len(links),sitemap_url))
+                    .format(len(links), sitemap_url))
 
     return links
+
 
 def main():
     '''
